@@ -5,7 +5,7 @@ import sys
 pygame.init()
 
 # Dimensions de la fenêtre
-WIDTH, HEIGHT = 1000, 600
+WIDTH, HEIGHT = 1000, 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Simulateur d'Ordonnancement - IN422")
 
@@ -68,12 +68,13 @@ labels = ["Nom:", "Arrivée:", "Durée:", "Deadline:"]
 input_boxes = [InputBox(400, 160 + i * 60, 200, 40, labels[i]) for i in range(4)]
 
 # Boutons supplémentaires
-add_button = pygame.Rect(620, 420, 160, 45)
-simulate_button = pygame.Rect(800, 420, 160, 45)
+add_button = pygame.Rect(620, 250, 160, 45)
+simulate_button = pygame.Rect(800, 250, 160, 45)
 
-# Liste des tâches
+# Liste des tâches et erreurs
 tasks = []
 simulation_active = False
+error_message = ""
 
 # Fonctions d'affichage
 
@@ -86,6 +87,9 @@ def draw_buttons(mouse_pos):
 
 def draw_display_area():
     pygame.draw.rect(screen, LIGHT_GRAY, (250, 80, 720, 480), border_radius=15)
+    pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
+    # Ne plus afficher l'étiquette ici
+    
     pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
 
 def draw_banner():
@@ -106,7 +110,7 @@ def draw_simulate_button(mouse_pos):
     screen.blit(label, label.get_rect(center=simulate_button.center))
 
 def draw_task_list():
-    y_offset = 480
+    y_offset = 430
     for i, task in enumerate(tasks[-5:]):
         task_text = f"Tâche {i+1} - Arr: {task['Arrivée']}, Durée: {task['Durée']}, DL: {task['Deadline']}"
         task_surface = input_font.render(task_text, True, BLACK)
@@ -114,19 +118,33 @@ def draw_task_list():
         y_offset += 25
 
 def draw_fcfs_timeline():
-    try:
-        sorted_tasks = sorted(tasks, key=lambda t: int(t['Arrivée']))
-        x_start = 270
-        y_base = 300
-        for task in sorted_tasks:
-            duration = int(task['Durée'])
-            rect_width = duration * 30
-            pygame.draw.rect(screen, DARK_BLUE, (x_start, y_base, rect_width, 40))
-            text = input_font.render(task['Nom'], True, WHITE)
-            screen.blit(text, (x_start + 5, y_base + 8))
-            x_start += rect_width + 10
-    except Exception as e:
-        print("Erreur lors de la simulation FCFS:", e)
+    sorted_tasks = sorted(tasks, key=lambda t: int(t['Arrivée']))
+    x_start = 270
+    y_base = 610
+    for task in sorted_tasks:
+        duration = int(task['Durée'])
+        rect_width = duration * 25
+        pygame.draw.rect(screen, DARK_BLUE, (x_start, y_base, rect_width, 30))
+        text = input_font.render(task['Nom'], True, WHITE)
+        screen.blit(text, (x_start + 5, y_base + 5))
+        x_start += rect_width + 10
+
+def draw_edf_timeline():
+    sorted_tasks = sorted(tasks, key=lambda t: int(t['Deadline']))
+    x_start = 270
+    y_base = 650
+    for task in sorted_tasks:
+        duration = int(task['Durée'])
+        rect_width = duration * 25
+        pygame.draw.rect(screen, GREEN, (x_start, y_base, rect_width, 30))
+        text = input_font.render(task['Nom'], True, WHITE)
+        screen.blit(text, (x_start + 5, y_base + 5))
+        x_start += rect_width + 10
+
+def draw_error():
+    if error_message:
+        error_surface = input_font.render(error_message, True, RED)
+        screen.blit(error_surface, (400, 130))
 
 # Boucle principale
 selected_algo = None
@@ -142,13 +160,20 @@ while running:
     draw_add_button(mouse_pos)
     draw_simulate_button(mouse_pos)
     draw_task_list()
+    draw_error()
 
     if selected_algo:
         msg = font.render(f"Algorithme sélectionné : {selected_algo}", True, BLACK)
         screen.blit(msg, (400, 100))
 
-    if simulation_active and selected_algo == "FCFS":
-        draw_fcfs_timeline()
+    if simulation_active:
+        label_text = f"Simulation : {selected_algo}"
+        label_surface = input_font.render(label_text, True, BLACK)
+        screen.blit(label_surface, (270, 580))
+        if selected_algo == "FCFS":
+            draw_fcfs_timeline()
+        elif selected_algo == "EDF":
+            draw_edf_timeline()
 
     for box in input_boxes:
         box.update()
@@ -161,13 +186,20 @@ while running:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if add_button.collidepoint(event.pos):
                 task_data = {box.label.strip(":"): box.text for box in input_boxes}
-                tasks.append(task_data)
-                for box in input_boxes:
-                    box.text = ''
-                    box.txt_surface = input_font.render('', True, BLACK)
-                simulation_active = False  # reset visuel
+                try:
+                    int(task_data["Arrivée"])
+                    int(task_data["Durée"])
+                    int(task_data["Deadline"])
+                    tasks.append(task_data)
+                    for box in input_boxes:
+                        box.text = ''
+                        box.txt_surface = input_font.render('', True, BLACK)
+                    error_message = ""
+                    simulation_active = False
+                except:
+                    error_message = "Erreur : Arrivée, Durée et Deadline doivent être des nombres."
 
-            if simulate_button.collidepoint(event.pos) and selected_algo == "FCFS":
+            if simulate_button.collidepoint(event.pos):
                 simulation_active = True
 
             for rect, algo in buttons:
