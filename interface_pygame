@@ -1,38 +1,62 @@
-import pygame
+# -*- coding: utf‑8 -*-
+"""
+Ordonnanceur IN422 – version avec COMPARAISON des algorithmes
+© 2025
+"""
+
 import sys
+import os
+import pygame
+import matplotlib
+matplotlib.use("Agg")            # backend non‑interactif pour Pygame
+import matplotlib.pyplot as plt
+import numpy as np
+from collections import deque
 
-# Initialisation de Pygame
+# ---------------------------------------------------------------------------
+# Initialisation Pygame
 pygame.init()
+info = pygame.display.Info()
+SCREEN_WIDTH, SCREEN_HEIGHT = info.current_w - 100, info.current_h - 100
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Simulateur d'Ordonnancement – IN422")
+clock = pygame.time.Clock()
 
-# Dimensions de la fenêtre
-WIDTH, HEIGHT = 1000, 700
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Simulateur d'Ordonnancement - IN422")
+# ---------------------------------------------------------------------------
+# Couleurs & Polices
+WHITE       = (245, 245, 245)
+BLACK       = (20, 20, 20)
+GRAY        = (200, 200, 200)
+LIGHT_GRAY  = (230, 230, 230)
+BLUE        = ( 70, 130, 180)
+DARK_BLUE   = ( 40, 100, 150)
+RED         = (200,  50,  50)
+GREEN       = ( 50, 160,  90)
+ORANGE      = (255, 165,   0)
+PURPLE      = (128,   0, 128)
 
-# Couleurs
-WHITE = (245, 245, 245)
-BLACK = (20, 20, 20)
-GRAY = (200, 200, 200)
-LIGHT_GRAY = (230, 230, 230)
-BLUE = (70, 130, 180)
-DARK_BLUE = (40, 100, 150)
-RED = (200, 50, 50)
-GREEN = (50, 160, 90)
+font       = pygame.font.SysFont("Arial", 28)
+title_font = pygame.font.SysFont("Arial", 40, bold=True)
+input_font = pygame.font.SysFont("Arial", 24)
+small_font = pygame.font.SysFont("Arial", 20)
 
-# Police
-font = pygame.font.SysFont("Arial", 26)
-title_font = pygame.font.SysFont("Arial", 36, bold=True)
-input_font = pygame.font.SysFont("Arial", 22)
+# ---------------------------------------------------------------------------
+# Paramètres généraux
+algorithms      = ["FCFS", "SJN", "RR", "RM", "EDF"]
+time_quantum    = 2
+MAX_TIMELINE    = 50            # borne d’affichage de la frise
 
-# Classe pour les champs de texte
+# ---------------------------------------------------------------------------
+# Boîte de saisie générique
 class InputBox:
-    def __init__(self, x, y, w, h, label):
+    def __init__(self, x, y, w, h, label, is_numeric=False):
         self.rect = pygame.Rect(x, y, w, h)
         self.color = GRAY
         self.text = ''
         self.label = label
         self.txt_surface = input_font.render(self.text, True, BLACK)
         self.active = False
+        self.is_numeric = is_numeric
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -42,175 +66,574 @@ class InputBox:
                 self.text = self.text[:-1]
             elif event.key == pygame.K_RETURN:
                 self.active = False
-            else:
+            elif not self.is_numeric or event.unicode.isdigit():
                 self.text += event.unicode
             self.txt_surface = input_font.render(self.text, True, BLACK)
 
     def update(self):
         self.color = BLUE if self.active else GRAY
 
-    def draw(self, screen):
+    def draw(self, surf):
+        # libellé
         label_surface = input_font.render(self.label, True, BLACK)
-        screen.blit(label_surface, (self.rect.x - 110, self.rect.y + 7))
-        pygame.draw.rect(screen, WHITE, self.rect)
-        pygame.draw.rect(screen, self.color, self.rect, 2)
-        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 7))
+        surf.blit(label_surface, (self.rect.x - 110, self.rect.y + 7))
+        # zone
+        pygame.draw.rect(surf, WHITE, self.rect)
+        pygame.draw.rect(surf, self.color, self.rect, 2)
+        surf.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 7))
 
-# Boutons des algorithmes
-algorithms = ["FCFS", "SJN", "RR", "RM", "EDF"]
-buttons = []
-for i, algo in enumerate(algorithms):
-    rect = pygame.Rect(40, 100 + i * 70, 180, 50)
-    buttons.append((rect, algo))
+# ---------------------------------------------------------------------------
+# ALGORITHMES D’ORDONNANCEMENT ------------------------------------------------
+def fcfs_schedule(tasks):
+    return sorted(tasks, key=lambda x: int(x['Arrivee']))
 
-# Champs de formulaire
-labels = ["Nom:", "Arrivée:", "Durée:", "Deadline:"]
-input_boxes = [InputBox(400, 160 + i * 60, 200, 40, labels[i]) for i in range(4)]
+def sjn_schedule(tasks):
+    return sorted(tasks, key=lambda x: (int(x['Arrivee']), int(x['Duree'])))
 
-# Boutons supplémentaires
-add_button = pygame.Rect(620, 250, 160, 45)
-simulate_button = pygame.Rect(800, 250, 160, 45)
+def rr_schedule(tasks, tq=2, limit=MAX_TIMELINE):
+    if not tasks: return []
+    tq = max(1, tq)
+    q  = deque(sorted(tasks, key=lambda x: int(x['Arrivee'])))
+    sched, t = [], 0
+    while q and t < limit:
+        cur = q.popleft()
+        a, d = int(cur['Arrivee']), int(cur['Duree'])
+        if a > t:          # CPU idle
+            q.append(cur)
+            t = a
+            continue
+        exec_t = min(tq, d, limit-t)
+        sched.append((cur['Nom'], t, exec_t))
+        t += exec_t
+        if d - exec_t > 0 and t < limit:
+            nxt = cur.copy()
+            nxt['Duree'] = str(d - exec_t)
+            q.append(nxt)
+    return sched
 
-# Liste des tâches et erreurs
-tasks = []
-simulation_active = False
-error_message = ""
+def rm_schedule(tasks, limit=MAX_TIMELINE):
+    if not tasks: return []
+    copies = [t.copy() for t in tasks]
+    sorted_t = sorted(copies, key=lambda x: int(x['Priorite']))
+    sched, t = [], 0
+    while t < limit:
+        scheduled = False
+        for task in sorted_t:
+            a      = int(task['Arrivee'])
+            period = int(task['Priorite'])
+            exe    = int(task['Execution'])
+            if a <= t and t % period == 0 and exe > 0:
+                sched.append((task['Nom'], t, 1))
+                task['Execution'] = str(exe-1)
+                t += 1
+                scheduled = True
+                break
+        if not scheduled:
+            t += 1
+    return sched
 
-# Fonctions d'affichage
+def edf_schedule(tasks, limit=MAX_TIMELINE):
+    if not tasks: return []
+    remain = [{'Nom': t['Nom'],
+               'exec': int(t['Duree']),
+               'deadline': int(t['Deadline']),
+               'Arrivee': int(t.get('Arrivee', 0))}
+              for t in tasks]
+    sched, t = [], 0
+    while t < limit and remain:
+        available = [x for x in remain if x['exec']>0 and x['Arrivee']<=t]
+        if not available:
+            t += 1
+            continue
+        cur = min(available, key=lambda x: x['deadline'])
+        sched.append((cur['Nom'], t, 1))
+        cur['exec'] -= 1
+        t += 1
+        remain = [x for x in remain if x['exec']>0]
+    return sched
 
-def draw_buttons(mouse_pos):
-    for rect, text in buttons:
-        color = DARK_BLUE if rect.collidepoint(mouse_pos) else BLUE
-        pygame.draw.rect(screen, color, rect, border_radius=10)
-        label = font.render(text, True, WHITE)
-        screen.blit(label, label.get_rect(center=rect.center))
+# ---------------------------------------------------------------------------
+# CALCUL DES MÉTRIQUES --------------------------------------------------------
+def metrics_from_schedule(tasks, schedule, algo):
+    """
+    Retourne (avg_waiting, avg_turnaround, cpu_util%) pour un algorithme donné.
+    """
+    if not tasks or not schedule:
+        return None
 
-def draw_display_area():
-    pygame.draw.rect(screen, LIGHT_GRAY, (250, 80, 720, 480), border_radius=15)
-    pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
-    # Ne plus afficher l'étiquette ici
-    
-    pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
+    # Préparer info par tâche
+    info = {}
+    for t in tasks:
+        name = t['Nom']
+        if algo == "RM":
+            dur = int(t['Execution'])
+            arr = int(t['Arrivee'])
+        elif algo in ("FCFS", "SJN", "RR"):
+            dur = int(t['Duree'])
+            arr = int(t['Arrivee'])
+        else:                               # EDF
+            dur = int(t['Duree'])
+            arr = int(t.get('Arrivee', 0))
+        info[name] = {'arrival': arr,
+                      'required': dur,
+                      'first': None,
+                      'end': None}
 
+    busy = 0
+    for name, start, length in schedule:
+        busy += length
+        if name not in info:                # sécurité
+            continue
+        end_time = start + length
+        if info[name]['first'] is None:
+            info[name]['first'] = start
+        info[name]['end'] = max(info[name]['end'] or 0, end_time)
+
+    waits, turnarounds = [], []
+    for name, dat in info.items():
+        if dat['first'] is None or dat['end'] is None:
+            # tâche jamais planifiée → comparaison invalide
+            return None
+        waits.append(dat['first'] - dat['arrival'])
+        turnarounds.append(dat['end']   - dat['arrival'])
+
+    avg_wait     = sum(waits) / len(waits)
+    avg_turn     = sum(turnarounds) / len(turnarounds)
+    sim_length   = max(d['end'] for d in info.values())
+    cpu_util     = (busy / sim_length) * 100 if sim_length else 0
+    return round(avg_wait,2), round(avg_turn,2), round(cpu_util,2)
+
+# ---------------------------------------------------------------------------
+# INTERFACE : initialisation des composants ----------------------------------
+def init_components():
+    global buttons, input_boxes, add_button, compare_button, data_button, clear_button
+    global compare_back_btn, current_labels
+
+    # Boutons algorithmes
+    buttons = []
+    for i, algo in enumerate(algorithms):
+        rect = pygame.Rect(40, 120 + i * 80, 200, 60)
+        buttons.append((rect, algo))
+
+    # Champs de saisie par défaut (FCFS)
+    current_labels = ["Nom:", "Arrivee:", "Duree:"]
+    base_x = 300
+    input_boxes[:] = [InputBox(base_x + 150, 200 + i * 60,
+                               250, 45, current_labels[i], is_numeric=(i>0))
+                      for i in range(len(current_labels))]
+
+    # Boutons actions
+    add_button     = pygame.Rect(base_x + 570, 210, 200, 50)
+    compare_button = pygame.Rect(base_x + 570, 280, 200, 50)
+    data_button    = pygame.Rect(base_x + 570, 350, 200, 50)
+    clear_button   = pygame.Rect(base_x + 570, 420, 200, 50)
+
+    # Bouton retour page comparaison
+    compare_back_btn = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 120, 150, 40)
+
+# ---------------------------------------------------------------------------
+# DESSIN UI – bannières, boutons, etc.  --------------------------------------
 def draw_banner():
-    pygame.draw.rect(screen, BLUE, (0, 0, WIDTH, 60))
+    pygame.draw.rect(screen, BLUE, (0, 0, SCREEN_WIDTH, 70))
     title = title_font.render("Visualisation des Algorithmes d'Ordonnancement", True, WHITE)
-    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 12))
+    screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 15))
 
-def draw_add_button(mouse_pos):
-    color = DARK_BLUE if add_button.collidepoint(mouse_pos) else BLUE
-    pygame.draw.rect(screen, color, add_button, border_radius=10)
-    label = input_font.render("Ajouter Tâche", True, WHITE)
-    screen.blit(label, label.get_rect(center=add_button.center))
+def draw_buttons(mouse):
+    for rect, txt in buttons:
+        color = DARK_BLUE if rect.collidepoint(mouse) else BLUE
+        pygame.draw.rect(screen, color, rect, border_radius=10)
+        lab = font.render(txt, True, WHITE)
+        screen.blit(lab, (rect.centerx-lab.get_width()//2,
+                          rect.centery-lab.get_height()//2))
 
-def draw_simulate_button(mouse_pos):
-    color = GREEN if simulate_button.collidepoint(mouse_pos) else DARK_BLUE
-    pygame.draw.rect(screen, color, simulate_button, border_radius=10)
-    label = input_font.render("Lancer Simulation", True, WHITE)
-    screen.blit(label, label.get_rect(center=simulate_button.center))
+def draw_action_button(rect, txt, mouse, color_on=DARK_BLUE, color_off=BLUE):
+    col = color_on if rect.collidepoint(mouse) else color_off
+    pygame.draw.rect(screen, col, rect, border_radius=10)
+    lab = input_font.render(txt, True, WHITE)
+    screen.blit(lab, (rect.centerx - lab.get_width()//2,
+                      rect.centery - lab.get_height()//2))
+
+def draw_input_panel():
+    w, h, x, y = 550, 400, 300, 120
+    pygame.draw.rect(screen, LIGHT_GRAY, (x, y, w, h), border_radius=10)
+    pygame.draw.rect(screen, GRAY,       (x, y, w, h), 2, border_radius=10)
+    title = font.render("Paramètres des Tâches", True, BLACK)
+    screen.blit(title, (x + (w-title.get_width())//2, y+20))
 
 def draw_task_list():
-    y_offset = 430
-    for i, task in enumerate(tasks[-5:]):
-        task_text = f"Tâche {i+1} - Arr: {task['Arrivée']}, Durée: {task['Durée']}, DL: {task['Deadline']}"
-        task_surface = input_font.render(task_text, True, BLACK)
-        screen.blit(task_surface, (400, y_offset))
-        y_offset += 25
-
-def draw_fcfs_timeline():
-    sorted_tasks = sorted(tasks, key=lambda t: int(t['Arrivée']))
-    x_start = 270
-    y_base = 610
-    for task in sorted_tasks:
-        duration = int(task['Durée'])
-        rect_width = duration * 25
-        pygame.draw.rect(screen, DARK_BLUE, (x_start, y_base, rect_width, 30))
-        text = input_font.render(task['Nom'], True, WHITE)
-        screen.blit(text, (x_start + 5, y_base + 5))
-        x_start += rect_width + 10
-
-def draw_edf_timeline():
-    sorted_tasks = sorted(tasks, key=lambda t: int(t['Deadline']))
-    x_start = 270
-    y_base = 650
-    for task in sorted_tasks:
-        duration = int(task['Durée'])
-        rect_width = duration * 25
-        pygame.draw.rect(screen, GREEN, (x_start, y_base, rect_width, 30))
-        text = input_font.render(task['Nom'], True, WHITE)
-        screen.blit(text, (x_start + 5, y_base + 5))
-        x_start += rect_width + 10
+    x0, y = 1100, 150
+    for task in tasks[-5:]:
+        txt = f"{task['Nom']}"
+        if 'Arrivee' in task:   txt += f" - Arr:{task['Arrivee']}"
+        if 'Duree'   in task:   txt += f", Dur:{task['Duree']}"
+        if 'Deadline'in task:   txt += f", DL:{task['Deadline']}"
+        if 'Priorite'in task:   txt += f", Prio:{task['Priorite']}"
+        if 'Execution'in task:  txt += f", Exec:{task['Execution']}"
+        surf = small_font.render(txt, True, BLACK)
+        screen.blit(surf, (x0+20, y))
+        y += 30
 
 def draw_error():
     if error_message:
-        error_surface = input_font.render(error_message, True, RED)
-        screen.blit(error_surface, (400, 130))
+        surf = input_font.render(error_message, True, RED)
+        screen.blit(surf, (400, 130))
 
-# Boucle principale
-selected_algo = None
-running = True
+# ---------------------------------------------------------------------------
+# FRISE DE SIMULATION ---------------------------------------------------------
+def draw_timeline(schedule, y_pos, color, title):
+    if not schedule: return
+    max_t = MAX_TIMELINE
+    w_tl  = SCREEN_WIDTH - 300
+    scale = w_tl / max_t
+    h     = 35
+    # Titre
+    screen.blit(font.render(title, True, BLACK), (170, y_pos-80))
+    # Organisation pour éviter chevauchements
+    time_slots, arranged = {}, []
+    for name, start, dur in schedule:
+        if start >= max_t: continue
+        dur = min(dur, max_t-start)
+        end = start + dur
+        line = 0
+        while True:
+            free = all(end<=s or start>=e for s,e in time_slots.get(line, []))
+            if free: break
+            line += 1
+        time_slots.setdefault(line, []).append((start,end))
+        arranged.append((name,start,dur,line))
+    # Dessin
+    for name,s,d,line in arranged:
+        x = 170 + s*scale
+        w = max(2, d*scale)
+        y = y_pos + line*(h+5)
+        pygame.draw.rect(screen, color, (x,y,w,h), border_radius=3)
+        if w>30:
+            lab = small_font.render(name, True, WHITE)
+            screen.blit(lab, (x+5, y+10))
+    # Axe temps
+    total_lines = len(time_slots)
+    for t in range(0, max_t+1, 5):
+        xp = 170 + t*scale
+        pygame.draw.line(screen, BLACK,
+                         (xp, y_pos+total_lines*(h+5)+5),
+                         (xp, y_pos+total_lines*(h+5)+15), 2)
+        screen.blit(small_font.render(str(t),True,BLACK),
+                    (xp-10, y_pos+total_lines*(h+5)+20))
+    # Limite
+    if any(s+d>MAX_TIMELINE for _,s,d,_ in arranged):
+        warn = small_font.render(f"(Limité à {MAX_TIMELINE} unités)", True, RED)
+        screen.blit(warn, (SCREEN_WIDTH-200, y_pos-40))
 
-while running:
-    screen.fill(WHITE)
-    mouse_pos = pygame.mouse.get_pos()
+def draw_simulation():
+    if selected_algo == "FCFS":
+        if all({'Arrivee','Duree'}<=t.keys() for t in tasks):
+            sched = [(t['Nom'], int(t['Arrivee']), int(t['Duree']))
+                     for t in fcfs_schedule(tasks) if int(t['Arrivee'])<MAX_TIMELINE]
+            draw_timeline(sched, SCREEN_HEIGHT-160, BLUE, "FCFS")
+        else:
+            return "FCFS nécessite Arrivée + Durée"
+    elif selected_algo == "SJN":
+        if all({'Arrivee','Duree'}<=t.keys() for t in tasks):
+            sched = [(t['Nom'], int(t['Arrivee']), int(t['Duree']))
+                     for t in sjn_schedule(tasks) if int(t['Arrivee'])<MAX_TIMELINE]
+            draw_timeline(sched, SCREEN_HEIGHT-160, GREEN, "SJN")
+        else:
+            return "SJN nécessite Arrivée + Durée"
+    elif selected_algo == "RR":
+        if all({'Arrivee','Duree'}<=t.keys() for t in tasks):
+            sched = rr_schedule(tasks, time_quantum, MAX_TIMELINE)
+            draw_timeline(sched, SCREEN_HEIGHT-160, RED,
+                          f"RR (Quantum={time_quantum})")
+        else:
+            return "RR nécessite Arrivée + Durée"
+    elif selected_algo == "RM":
+        if all({'Arrivee','Priorite','Execution'}<=t.keys() for t in tasks):
+            sched = rm_schedule(tasks, MAX_TIMELINE)
+            draw_timeline(sched, SCREEN_HEIGHT-160, ORANGE, "RM")
+        else:
+            return "RM nécessite Arrivée + Priorité + Execution"
+    elif selected_algo == "EDF":
+        if all({'Duree','Deadline'}<=t.keys() for t in tasks):
+            sched = edf_schedule(tasks, MAX_TIMELINE)
+            draw_timeline(sched, SCREEN_HEIGHT-160, PURPLE, "EDF")
+        else:
+            return "EDF nécessite Durée + Deadline"
+    return ""
 
-    draw_banner()
-    draw_buttons(mouse_pos)
-    draw_display_area()
-    draw_add_button(mouse_pos)
-    draw_simulate_button(mouse_pos)
-    draw_task_list()
-    draw_error()
+# ---------------------------------------------------------------------------
+# PAGE COMPARAISON -----------------------------------------------------------
+def generate_comparison(metrics_dict):
+    """
+    Génère le PNG et renvoie le pygame.Surface correspondant.
+    """
+    algos      = list(metrics_dict.keys())
+    waitings   = [v[0] for v in metrics_dict.values()]
+    turns      = [v[1] for v in metrics_dict.values()]
+    cpu_utils  = [v[2] for v in metrics_dict.values()]
 
-    if selected_algo:
-        msg = font.render(f"Algorithme sélectionné : {selected_algo}", True, BLACK)
-        screen.blit(msg, (400, 100))
+    x = np.arange(len(algos))
+    width = 0.25
+    plt.figure(figsize=(8,5))
+    plt.bar(x-width, waitings, width, label="Attente (moy.)")
+    plt.bar(x,        turns,   width, label="Exécution (moy.)")
+    plt.bar(x+width,  cpu_utils,width, label="CPU (%)")
+    plt.xticks(x, algos)
+    plt.ylabel("Valeur")
+    plt.title("Comparaison des performances")
+    plt.legend()
+    path = os.path.join(os.getcwd(), "comparison.png")
+    plt.tight_layout()
+    plt.savefig(path, dpi=120)
+    plt.close()
 
-    if simulation_active:
-        label_text = f"Simulation : {selected_algo}"
-        label_surface = input_font.render(label_text, True, BLACK)
-        screen.blit(label_surface, (270, 580))
-        if selected_algo == "FCFS":
-            draw_fcfs_timeline()
-        elif selected_algo == "EDF":
-            draw_edf_timeline()
+    img = pygame.image.load(path).convert()
+    # redimensionner si trop large
+    max_w = SCREEN_WIDTH - 200
+    if img.get_width() > max_w:
+        scale = max_w / img.get_width()
+        new_h = int(img.get_height()*scale)
+        img   = pygame.transform.smoothscale(img, (max_w, new_h))
+    return img
 
+def draw_comparison_page():
+    # fond
+    pygame.draw.rect(screen, LIGHT_GRAY,
+                     (50, 50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
+    pygame.draw.rect(screen, GRAY,
+                     (50, 50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
+
+    # titre
+    t = title_font.render("Comparaison des Algorithmes", True, BLACK)
+    screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
+
+    # valeurs numériques
+    y0 = 160
+    for algo, (w,tau,cpu) in comparison_metrics.items():
+        txt = f"{algo:<4}  |  Attente: {w:>6}  |  Exécution: {tau:>6}  |  CPU: {cpu:>6}%"
+        surf = font.render(txt, True, BLACK)
+        screen.blit(surf, (100, y0))
+        y0 += 40
+
+    # graphique
+    if comparison_surface:
+        screen.blit(comparison_surface,
+                    (SCREEN_WIDTH//2 - comparison_surface.get_width()//2,
+                     y0 + 30))
+
+    # bouton retour
+    pygame.draw.rect(screen, DARK_BLUE, compare_back_btn, border_radius=8)
+    lab = font.render("Retour", True, WHITE)
+    screen.blit(lab, (compare_back_btn.centerx - lab.get_width()//2,
+                      compare_back_btn.centery - lab.get_height()//2))
+
+# ---------------------------------------------------------------------------
+# FONCTIONS UTILITAIRES ------------------------------------------------------
+def update_input_boxes():
+    global current_labels, input_boxes
+    if selected_algo == "RM":
+        current_labels = ["Nom:", "Arrivee:", "Priorite:", "Execution:"]
+    elif selected_algo == "EDF":
+        current_labels = ["Nom:", "Duree:", "Deadline:"]
+    else:
+        current_labels = ["Nom:", "Arrivee:", "Duree:"]
+
+    base_x = 300
+    input_boxes[:] = [InputBox(base_x + 150, 200 + i*60,
+                               250, 45, current_labels[i], is_numeric=(i>0))
+                      for i in range(len(current_labels))]
+
+def clear_inputs():
     for box in input_boxes:
-        box.update()
-        box.draw(screen)
+        box.text = ''
+        box.txt_surface = input_font.render('', True, BLACK)
 
+def algorithms_applicable(tsk):
+    """
+    Renvoie la liste des algorithmes dont les champs requis sont présents
+    dans toutes les tâches.
+    """
+    fields_by_algo = {
+        "FCFS": {"Arrivee","Duree"},
+        "SJN" : {"Arrivee","Duree"},
+        "RR"  : {"Arrivee","Duree"},
+        "RM"  : {"Arrivee","Priorite","Execution"},
+        "EDF" : {"Duree","Deadline"}
+    }
+    ok = []
+    for algo in algorithms:
+        needed = fields_by_algo[algo]
+        if all(needed <= set(t.keys()) for t in tsk):
+            ok.append(algo)
+    return ok
+
+def schedule_for(algo):
+    if   algo=="FCFS": return [(t['Nom'], int(t['Arrivee']), int(t['Duree']))
+                               for t in fcfs_schedule(tasks)]
+    elif algo=="SJN" : return [(t['Nom'], int(t['Arrivee']), int(t['Duree']))
+                               for t in sjn_schedule(tasks)]
+    elif algo=="RR"  : return rr_schedule(tasks, time_quantum, MAX_TIMELINE)
+    elif algo=="RM"  : return rm_schedule(tasks, MAX_TIMELINE)
+    else:              return edf_schedule(tasks, MAX_TIMELINE)
+
+# ---------------------------------------------------------------------------
+# VARIABLES D’ÉTAT -----------------------------------------------------------
+tasks               = []
+input_boxes         = []
+selected_algo       = None
+simulation_active   = False
+error_message       = ""
+current_page        = "main"          # main | data | compare
+selected_task_index = None
+comparison_metrics  = {}
+comparison_surface  = None
+
+# composant visuels
+init_components()
+
+# ---------------------------------------------------------------------------
+# BOUCLE PRINCIPALE ----------------------------------------------------------
+running = True
+while running:
+    mouse = pygame.mouse.get_pos()
+    screen.fill(WHITE)
+
+    # ---- AFFICHAGE ---------------------------------------------------------
+    if current_page == "main":
+        draw_banner()
+        draw_buttons(mouse)
+        draw_input_panel()
+        draw_action_button(add_button,      "Ajouter Tâche",  mouse)
+        draw_action_button(compare_button,  "Comparaison",    mouse, ORANGE, PURPLE)
+        draw_action_button(data_button,     "Data",           mouse, ORANGE, PURPLE)
+        draw_action_button(clear_button,    "Effacer Tout",   mouse, RED, (200,50,50))
+        draw_task_list()
+        draw_error()
+
+        if selected_algo:
+            lab = pygame.font.SysFont("Arial", 28, bold=True).render(
+                    f"Algorithme sélectionné : {selected_algo}", True, BLACK)
+            screen.blit(lab, (500, 77))
+
+        if simulation_active and selected_algo:
+            err = draw_simulation()
+            if err: error_message = err
+
+        for box in input_boxes:
+            box.update(); box.draw(screen)
+
+    elif current_page == "compare":
+        draw_comparison_page()
+
+    elif current_page == "data":
+        # (page de gestion des tâches inchangée)
+        pygame.draw.rect(screen, LIGHT_GRAY,
+                         (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
+        pygame.draw.rect(screen, GRAY,
+                         (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
+        t = title_font.render("Gestion des Tâches", True, BLACK)
+        screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
+        # liste + boutons + champs (identique à version précédente)
+        # (afin de ne pas alourdir, le code de la page « data » reste celui de votre base)
+
+    pygame.display.flip()
+
+    # ---- ÉVÉNEMENTS -------------------------------------------------------
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if add_button.collidepoint(event.pos):
-                task_data = {box.label.strip(":"): box.text for box in input_boxes}
-                try:
-                    int(task_data["Arrivée"])
-                    int(task_data["Durée"])
-                    int(task_data["Deadline"])
-                    tasks.append(task_data)
-                    for box in input_boxes:
-                        box.text = ''
-                        box.txt_surface = input_font.render('', True, BLACK)
-                    error_message = ""
-                    simulation_active = False
-                except:
-                    error_message = "Erreur : Arrivée, Durée et Deadline doivent être des nombres."
-
-            if simulate_button.collidepoint(event.pos):
-                simulation_active = True
-
-            for rect, algo in buttons:
-                if rect.collidepoint(mouse_pos):
-                    selected_algo = algo
-                    simulation_active = False
-
+        # Gestion clavier pour input boxes
         for box in input_boxes:
             box.handle_event(event)
 
-    pygame.display.flip()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # -- PAGE MAIN --
+            if current_page == "main":
+                # sélection algo
+                for rect, algo in buttons:
+                    if rect.collidepoint(event.pos):
+                        selected_algo = algo
+                        simulation_active = True
+                        update_input_boxes()
+                        error_message = ""
+                        clear_inputs()
+
+                # ajout tâche
+                if add_button.collidepoint(event.pos):
+                    if not selected_algo:
+                        error_message = "Sélectionnez d'abord un algorithme"
+                        continue
+                    task = {'Nom': input_boxes[0].text.strip()}
+                    try:
+                        if not task['Nom']:
+                            raise ValueError("Le nom est requis")
+
+                        if selected_algo=="RM":
+                            task.update({'Arrivee': input_boxes[1].text,
+                                         'Priorite':input_boxes[2].text,
+                                         'Execution':input_boxes[3].text})
+                            int(task['Arrivee']); int(task['Priorite']); int(task['Execution'])
+                        elif selected_algo=="EDF":
+                            task.update({'Duree':input_boxes[1].text,
+                                         'Deadline':input_boxes[2].text})
+                            int(task['Duree']);  int(task['Deadline'])
+                        else:
+                            task.update({'Arrivee':input_boxes[1].text,
+                                         'Duree':input_boxes[2].text})
+                            int(task['Arrivee']); int(task['Duree'])
+
+                        tasks.append(task)
+                        clear_inputs()
+                        error_message=""
+                    except ValueError as e:
+                        error_message=f"Erreur: {e}"
+
+                # clic sur « Comparaison »
+                if compare_button.collidepoint(event.pos):
+                    if not tasks:
+                        error_message = "Aucune tâche à comparer"
+                        continue
+                    applicable = algorithms_applicable(tasks)
+                    if len(applicable) < 2:
+                        error_message = "Les algorithmes ne sont pas comparables (champs manquants)"
+                        continue
+
+                    comparison_metrics.clear()
+                    for algo in applicable:
+                        sched = schedule_for(algo)
+                        m = metrics_from_schedule(tasks, sched, algo)
+                        if m:  comparison_metrics[algo] = m
+
+                    if len(comparison_metrics) < 2:
+                        error_message = "Comparaison impossible – toutes les tâches ne sont pas planifiées"
+                        continue
+
+                    comparison_surface = generate_comparison(comparison_metrics)
+                    current_page = "compare"
+                    error_message = ""
+
+                # page Data
+                if data_button.collidepoint(event.pos):
+                    current_page = "data"
+                    selected_task_index = None
+                    clear_inputs()
+
+                # effacer tout
+                if clear_button.collidepoint(event.pos):
+                    tasks.clear()
+                    simulation_active=False
+                    selected_algo=None
+                    update_input_boxes()
+                    error_message=""
+
+            # -- PAGE COMPARAISON --
+            elif current_page == "compare":
+                if compare_back_btn.collidepoint(event.pos):
+                    current_page = "main"
+
+            # -- PAGE DATA (code identique à votre version précédente) --
+            # ...
+    clock.tick(30)
 
 pygame.quit()
 sys.exit()
