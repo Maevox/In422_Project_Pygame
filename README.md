@@ -1,216 +1,91 @@
-import pygame
-import sys
+# Simulateur d’Ordonnancement – IN422
 
-# Initialisation de Pygame
-pygame.init()
 
-# Dimensions de la fenêtre
-WIDTH, HEIGHT = 1000, 700
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Simulateur d'Ordonnancement - IN422")
+Ce simulateur expose visuellement le comportement de cinq algorithmes :
 
-# Couleurs
-WHITE = (245, 245, 245)
-BLACK = (20, 20, 20)
-GRAY = (200, 200, 200)
-LIGHT_GRAY = (230, 230, 230)
-BLUE = (70, 130, 180)
-DARK_BLUE = (40, 100, 150)
-RED = (200, 50, 50)
-GREEN = (50, 160, 90)
+* FCFS (First‑Come, First‑Served)
+* SJN  (Shortest Job Next)
+* RR  (Round‑Robin, quantum personnalisable)
+* RM  (Rate‑Monotonic)
+* EDF (Earliest Deadline First)
 
-# Police
-font = pygame.font.SysFont("Arial", 26)
-title_font = pygame.font.SysFont("Arial", 36, bold=True)
-input_font = pygame.font.SysFont("Arial", 22)
+Chaque tâche est représentée par un bloc coloré sur une frise temporelle, et des métriques clefs (temps d’attente moyen, temps de rotation moyen, utilisation CPU) sont agrégées dans une page de comparaison.
 
-# Classe pour les champs de texte
-class InputBox:
-    def __init__(self, x, y, w, h, label):
-        self.rect = pygame.Rect(x, y, w, h)
-        self.color = GRAY
-        self.text = ''
-        self.label = label
-        self.txt_surface = input_font.render(self.text, True, BLACK)
-        self.active = False
 
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.active = self.rect.collidepoint(event.pos)
-        if event.type == pygame.KEYDOWN and self.active:
-            if event.key == pygame.K_BACKSPACE:
-                self.text = self.text[:-1]
-            elif event.key == pygame.K_RETURN:
-                self.active = False
-            else:
-                self.text += event.unicode
-            self.txt_surface = input_font.render(self.text, True, BLACK)
+## Fonctionnalités
 
-    def update(self):
-        self.color = BLUE if self.active else GRAY
+* **Visualisation temps réel** des tâches planifiées sur une frise interactive.
+* **Interface graphique** complète : sélection d’algorithmes, formulaires dynamiques, pages multiples (Simulation, Data, Comparaison).
+* **Comparaison graphique** des performances via Matplotlib (diagramme à barres exporté automatiquement).
+* **Gestion des tâches** : ajout, édition, suppression et enregistrement depuis l’onglet *Data*.
+* **Adaptation automatique** à la taille de l’écran (largeur/hauteur récupérées au démarrage).
 
-    def draw(self, screen):
-        label_surface = input_font.render(self.label, True, BLACK)
-        screen.blit(label_surface, (self.rect.x - 110, self.rect.y + 7))
-        pygame.draw.rect(screen, WHITE, self.rect)
-        pygame.draw.rect(screen, self.color, self.rect, 2)
-        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 7))
+---
 
-# Boutons des algorithmes
-algorithms = ["FCFS", "SJN", "RR", "RM", "EDF"]
-buttons = []
-for i, algo in enumerate(algorithms):
-    rect = pygame.Rect(40, 100 + i * 70, 180, 50)
-    buttons.append((rect, algo))
+## Prise en main
 
-# Champs de formulaire
-labels = ["Nom:", "Arrivée:", "Durée:", "Deadline:"]
-input_boxes = [InputBox(400, 160 + i * 60, 200, 40, labels[i]) for i in range(4)]
+### 1. Sélection d’un algorithme
 
-# Boutons supplémentaires
-add_button = pygame.Rect(620, 250, 160, 45)
-simulate_button = pygame.Rect(800, 250, 160, 45)
+Les cinq boutons verticaux à gauche permettent de choisir l’algorithme ; la zone de saisie s’adapte automatiquement aux champs requis (Arrivée, Priorité, Deadline, etc.).
 
-# Liste des tâches et erreurs
-tasks = []
-simulation_active = False
-error_message = ""
+### 2. Ajout de tâches
 
-# Fonctions d'affichage
+1. Remplissez les champs dans *Paramètres des Tâches*.
+2. Cliquez sur **Ajouter Tâche**.
+3. La tâche apparaît dans la liste à droite et dans la frise.
 
-def draw_buttons(mouse_pos):
-    for rect, text in buttons:
-        color = DARK_BLUE if rect.collidepoint(mouse_pos) else BLUE
-        pygame.draw.rect(screen, color, rect, border_radius=10)
-        label = font.render(text, True, WHITE)
-        screen.blit(label, label.get_rect(center=rect.center))
+*Exemple pour EDF :* `Nom = T1`, `Durée = 5`, `Deadline = 12`.
 
-def draw_display_area():
-    pygame.draw.rect(screen, LIGHT_GRAY, (250, 80, 720, 480), border_radius=15)
-    pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
-    # Ne plus afficher l'étiquette ici
-    
-    pygame.draw.rect(screen, GRAY, (250, 80, 720, 480), 3, border_radius=15)
+### 3. Actions principales
 
-def draw_banner():
-    pygame.draw.rect(screen, BLUE, (0, 0, WIDTH, 60))
-    title = title_font.render("Visualisation des Algorithmes d'Ordonnancement", True, WHITE)
-    screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 12))
+* **Comparaison** : ouvre une page dédiée présentant un tableau récapitulatif et un histogramme.
+* **Data** : gère la liste de tâches (sélection, édition, suppression).
+* **Effacer Tout** : réinitialise entièrement la simulation.
 
-def draw_add_button(mouse_pos):
-    color = DARK_BLUE if add_button.collidepoint(mouse_pos) else BLUE
-    pygame.draw.rect(screen, color, add_button, border_radius=10)
-    label = input_font.render("Ajouter Tâche", True, WHITE)
-    screen.blit(label, label.get_rect(center=add_button.center))
+### 4. Page *Comparaison*
 
-def draw_simulate_button(mouse_pos):
-    color = GREEN if simulate_button.collidepoint(mouse_pos) else DARK_BLUE
-    pygame.draw.rect(screen, color, simulate_button, border_radius=10)
-    label = input_font.render("Lancer Simulation", True, WHITE)
-    screen.blit(label, label.get_rect(center=simulate_button.center))
+Affiche pour chaque algorithme applicable :
 
-def draw_task_list():
-    y_offset = 430
-    for i, task in enumerate(tasks[-5:]):
-        task_text = f"Tâche {i+1} - Arr: {task['Arrivée']}, Durée: {task['Durée']}, DL: {task['Deadline']}"
-        task_surface = input_font.render(task_text, True, BLACK)
-        screen.blit(task_surface, (400, y_offset))
-        y_offset += 25
+| Indicateur              | Description                                      |
+| ----------------------- | ------------------------------------------------ |
+| Temps d’attente moyen   | Premier démarrage – arrivée                      |
+| Temps de rotation moyen | Fin d’exécution – arrivée                        |
+| Utilisation CPU         | Temps CPU occupé / durée totale de la simulation |
 
-def draw_fcfs_timeline():
-    sorted_tasks = sorted(tasks, key=lambda t: int(t['Arrivée']))
-    x_start = 270
-    y_base = 610
-    for task in sorted_tasks:
-        duration = int(task['Durée'])
-        rect_width = duration * 25
-        pygame.draw.rect(screen, DARK_BLUE, (x_start, y_base, rect_width, 30))
-        text = input_font.render(task['Nom'], True, WHITE)
-        screen.blit(text, (x_start + 5, y_base + 5))
-        x_start += rect_width + 10
+---
 
-def draw_edf_timeline():
-    sorted_tasks = sorted(tasks, key=lambda t: int(t['Deadline']))
-    x_start = 270
-    y_base = 650
-    for task in sorted_tasks:
-        duration = int(task['Durée'])
-        rect_width = duration * 25
-        pygame.draw.rect(screen, GREEN, (x_start, y_base, rect_width, 30))
-        text = input_font.render(task['Nom'], True, WHITE)
-        screen.blit(text, (x_start + 5, y_base + 5))
-        x_start += rect_width + 10
+## Structure du code
 
-def draw_error():
-    if error_message:
-        error_surface = input_font.render(error_message, True, RED)
-        screen.blit(error_surface, (400, 130))
+```text
+Project_Pygame.py
+│
+├─ Initialisation Pygame & constantes
+├─ Classe InputBox (gestion de la saisie)
+├─ Implémentations des algorithmes (FCFS, SJN, RR, RM, EDF)
+├─ Fonctions de calcul des métriques
+├─ Fonctions de dessin (frise, graphiques)
+├─ Pages : main, data, compare
+└─ Boucle principale 
+```
 
-# Boucle principale
-selected_algo = None
-running = True
+> Les algorithmes sont regroupés dans la section **ALGORITHMES D’ORDONNANCEMENT** (\~ligne 100 du fichier), chaque fonction renvoyant un planning sous forme de liste `(nom, start, durée)`.
 
-while running:
-    screen.fill(WHITE)
-    mouse_pos = pygame.mouse.get_pos()
+---
 
-    draw_banner()
-    draw_buttons(mouse_pos)
-    draw_display_area()
-    draw_add_button(mouse_pos)
-    draw_simulate_button(mouse_pos)
-    draw_task_list()
-    draw_error()
+## Personnalisation
 
-    if selected_algo:
-        msg = font.render(f"Algorithme sélectionné : {selected_algo}", True, BLACK)
-        screen.blit(msg, (400, 100))
+* **Quantum du Round‑Robin** : modifiez la variable `time_quantum` en début de fichier.
+* **Longueur de la frise** : ajustez `MAX_TIMELINE` pour changer l’horizon de simulation.
+* **Couleurs** : palette définie dans la section *Couleurs & Polices*.
 
-    if simulation_active:
-        label_text = f"Simulation : {selected_algo}"
-        label_surface = input_font.render(label_text, True, BLACK)
-        screen.blit(label_surface, (270, 580))
-        if selected_algo == "FCFS":
-            draw_fcfs_timeline()
-        elif selected_algo == "EDF":
-            draw_edf_timeline()
+---
 
-    for box in input_boxes:
-        box.update()
-        box.draw(screen)
+## Limitations & pistes d’amélioration
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+* Gestion limitée de la persistance (aucune sauvegarde sur disque).
+* Pas de support du temps réel strict ni des interruptions.
+* Possibilité d’exporter des rapports PDF ou CSV.
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if add_button.collidepoint(event.pos):
-                task_data = {box.label.strip(":"): box.text for box in input_boxes}
-                try:
-                    int(task_data["Arrivée"])
-                    int(task_data["Durée"])
-                    int(task_data["Deadline"])
-                    tasks.append(task_data)
-                    for box in input_boxes:
-                        box.text = ''
-                        box.txt_surface = input_font.render('', True, BLACK)
-                    error_message = ""
-                    simulation_active = False
-                except:
-                    error_message = "Erreur : Arrivée, Durée et Deadline doivent être des nombres."
+---
 
-            if simulate_button.collidepoint(event.pos):
-                simulation_active = True
-
-            for rect, algo in buttons:
-                if rect.collidepoint(mouse_pos):
-                    selected_algo = algo
-                    simulation_active = False
-
-        for box in input_boxes:
-            box.handle_event(event)
-
-    pygame.display.flip()
-
-pygame.quit()
-sys.exit()
+IPSA @2025
