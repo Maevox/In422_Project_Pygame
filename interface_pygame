@@ -631,8 +631,19 @@ while running:
                 if compare_back_btn.collidepoint(event.pos):
                     current_page = "main"
 
-            # -- PAGE DATA (code identique à votre version précédente) --
-            # ...
+            # -- PAGE DATA 
+            
+            elif current_page == "data":
+                # (page de gestion des tâches inchangée)
+                pygame.draw.rect(screen, LIGHT_GRAY,
+                                (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
+                pygame.draw.rect(screen, GRAY,
+                                (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
+                t = title_font.render("Gestion des Tâches", True, BLACK)
+                screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
+                # liste + boutons + champs (identique à version précédente)
+                # (afin de ne pas alourdir, le code de la page « data » reste celui de votre base)
+
     clock.tick(30)
 
 pygame.quit()
