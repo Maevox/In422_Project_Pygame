@@ -123,9 +123,11 @@ def rm_schedule(tasks, limit=MAX_TIMELINE):
             period = int(task['Priorite'])
             exe    = int(task['Execution'])
             if a <= t and t % period == 0 and exe > 0:
-                sched.append((task['Nom'], t, 1))
-                task['Execution'] = str(exe-1)
-                t += 1
+                # Changement ici : au lieu de durée 1, on met la période complète
+                duration = min(period, exe, limit-t)
+                sched.append((task['Nom'], t, duration))
+                task['Execution'] = str(exe - duration)
+                t += duration
                 scheduled = True
                 break
         if not scheduled:
@@ -286,8 +288,10 @@ def draw_timeline(schedule, y_pos, color, title):
     w_tl  = SCREEN_WIDTH - 300
     scale = w_tl / max_t
     h     = 35
+    
     # Titre
     screen.blit(font.render(title, True, BLACK), (170, y_pos-80))
+    
     # Organisation pour éviter chevauchements
     time_slots, arranged = {}, []
     for name, start, dur in schedule:
@@ -301,15 +305,26 @@ def draw_timeline(schedule, y_pos, color, title):
             line += 1
         time_slots.setdefault(line, []).append((start,end))
         arranged.append((name,start,dur,line))
+    
     # Dessin
     for name,s,d,line in arranged:
         x = 170 + s*scale
         w = max(2, d*scale)
         y = y_pos + line*(h+5)
         pygame.draw.rect(screen, color, (x,y,w,h), border_radius=3)
-        if w>30:
+        
+        # Modification ici : afficher le nom même pour les petites tâches
+        if w > 5:  # Même les petites tâches auront leur nom
             lab = small_font.render(name, True, WHITE)
-            screen.blit(lab, (x+5, y+10))
+            # Centrer le texte si possible
+            if w > lab.get_width():
+                screen.blit(lab, (x + (w - lab.get_width())//2, y + 10))
+            else:
+                # Pour les très petites tâches, on tronque ou on met juste la première lettre
+                short_name = name[0] if name else ""
+                short_lab = small_font.render(short_name, True, WHITE)
+                screen.blit(short_lab, (x + 2, y + 10))
+    
     # Axe temps
     total_lines = len(time_slots)
     for t in range(0, max_t+1, 5):
@@ -319,6 +334,7 @@ def draw_timeline(schedule, y_pos, color, title):
                          (xp, y_pos+total_lines*(h+5)+15), 2)
         screen.blit(small_font.render(str(t),True,BLACK),
                     (xp-10, y_pos+total_lines*(h+5)+20))
+    
     # Limite
     if any(s+d>MAX_TIMELINE for _,s,d,_ in arranged):
         warn = small_font.render(f"(Limité à {MAX_TIMELINE} unités)", True, RED)
