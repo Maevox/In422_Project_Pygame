@@ -1,91 +1,95 @@
-# Simulateur d’Ordonnancement – IN422
-
-
-Ce simulateur expose visuellement le comportement de cinq algorithmes :
-
-* FCFS (First‑Come, First‑Served)
-* SJN  (Shortest Job Next)
-* RR  (Round‑Robin, quantum personnalisable)
-* RM  (Rate‑Monotonic)
-* EDF (Earliest Deadline First)
-
-Chaque tâche est représentée par un bloc coloré sur une frise temporelle, et des métriques clefs (temps d’attente moyen, temps de rotation moyen, utilisation CPU) sont agrégées dans une page de comparaison.
-
-
-## Fonctionnalités
-
-* **Visualisation temps réel** des tâches planifiées sur une frise interactive.
-* **Interface graphique** complète : sélection d’algorithmes, formulaires dynamiques, pages multiples (Simulation, Data, Comparaison).
-* **Comparaison graphique** des performances via Matplotlib (diagramme à barres exporté automatiquement).
-* **Gestion des tâches** : ajout, édition, suppression et enregistrement depuis l’onglet *Data*.
-* **Adaptation automatique** à la taille de l’écran (largeur/hauteur récupérées au démarrage).
+Here is the exact translation of your text into English **without any modifications** to the original structure, formatting, or content (except for the language itself):
 
 ---
 
-## Prise en main
+# Scheduling Simulator – IN422
 
-### 1. Sélection d’un algorithme
 
-Les cinq boutons verticaux à gauche permettent de choisir l’algorithme ; la zone de saisie s’adapte automatiquement aux champs requis (Arrivée, Priorité, Deadline, etc.).
+This simulator visually demonstrates the behavior of five algorithms:
 
-### 2. Ajout de tâches
+* FCFS (First‑Come, First‑Served)  
+* SJN  (Shortest Job Next)  
+* RR  (Round‑Robin, customizable quantum)  
+* RM  (Rate‑Monotonic)  
+* EDF (Earliest Deadline First)  
 
-1. Remplissez les champs dans *Paramètres des Tâches*.
-2. Cliquez sur **Ajouter Tâche**.
-3. La tâche apparaît dans la liste à droite et dans la frise.
+Each task is represented by a colored block on a timeline, and key metrics (average waiting time, average turnaround time, CPU utilization) are aggregated on a comparison page.
 
-*Exemple pour EDF :* `Nom = T1`, `Durée = 5`, `Deadline = 12`.
 
-### 3. Actions principales
+## Features
 
-* **Comparaison** : ouvre une page dédiée présentant un tableau récapitulatif et un histogramme.
-* **Data** : gère la liste de tâches (sélection, édition, suppression).
-* **Effacer Tout** : réinitialise entièrement la simulation.
-
-### 4. Page *Comparaison*
-
-Affiche pour chaque algorithme applicable :
-
-| Indicateur              | Description                                      |
-| ----------------------- | ------------------------------------------------ |
-| Temps d’attente moyen   | Premier démarrage – arrivée                      |
-| Temps de rotation moyen | Fin d’exécution – arrivée                        |
-| Utilisation CPU         | Temps CPU occupé / durée totale de la simulation |
+* **Real-time visualization** of scheduled tasks on an interactive timeline.  
+* **Complete graphical interface**: algorithm selection, dynamic forms, multiple pages (Simulation, Data, Comparison).  
+* **Graphical performance comparison** via Matplotlib (automatically exported bar chart).  
+* **Task management**: add, edit, delete, and save tasks from the *Data* tab.  
+* **Automatic adaptation** to screen size (width/height retrieved at startup).  
 
 ---
 
-## Structure du code
+## Getting Started
+
+### 1. Selecting an Algorithm
+
+The five vertical buttons on the left allow you to choose the algorithm; the input area automatically adapts to required fields (Arrival, Priority, Deadline, etc.).  
+
+### 2. Adding Tasks
+
+1. Fill in the fields under *Task Parameters*.  
+2. Click **Add Task**.  
+3. The task appears in the list on the right and on the timeline.  
+
+*Example for EDF:* `Name = T1`, `Duration = 5`, `Deadline = 12`.  
+
+### 3. Main Actions
+
+* **Compare**: Opens a dedicated page with a summary table and histogram.  
+* **Data**: Manages the task list (selection, editing, deletion).  
+* **Clear All**: Fully resets the simulation.  
+
+### 4. *Comparison* Page
+
+Displays for each applicable algorithm:  
+
+| Metric                     | Description                                      |  
+| -------------------------- | ------------------------------------------------ |  
+| Average waiting time       | First start – arrival time                       |  
+| Average turnaround time    | End of execution – arrival time                  |  
+| CPU utilization            | Occupied CPU time / total simulation duration    |  
+
+---
+
+## Code Structure
 
 ```text
-Project_Pygame.py
-│
-├─ Initialisation Pygame & constantes
-├─ Classe InputBox (gestion de la saisie)
-├─ Implémentations des algorithmes (FCFS, SJN, RR, RM, EDF)
-├─ Fonctions de calcul des métriques
-├─ Fonctions de dessin (frise, graphiques)
-├─ Pages : main, data, compare
-└─ Boucle principale 
+Project_Pygame.py  
+│  
+├─ Pygame initialization & constants  
+├─ InputBox class (input handling)  
+├─ Algorithm implementations (FCFS, SJN, RR, RM, EDF)  
+├─ Metric calculation functions  
+├─ Drawing functions (timeline, charts)  
+├─ Pages: main, data, compare  
+└─ Main loop  
 ```
 
-> Les algorithmes sont regroupés dans la section **ALGORITHMES D’ORDONNANCEMENT** (\~ligne 100 du fichier), chaque fonction renvoyant un planning sous forme de liste `(nom, start, durée)`.
+> The algorithms are grouped in the **SCHEDULING ALGORITHMS** section (~line 100 of the file), each function returning a schedule as a list `(name, start, duration)`.  
 
 ---
 
-## Personnalisation
+## Customization
 
-* **Quantum du Round‑Robin** : modifiez la variable `time_quantum` en début de fichier.
-* **Longueur de la frise** : ajustez `MAX_TIMELINE` pour changer l’horizon de simulation.
-* **Couleurs** : palette définie dans la section *Couleurs & Polices*.
-
----
-
-## Limitations & pistes d’amélioration
-
-* Gestion limitée de la persistance (aucune sauvegarde sur disque).
-* Pas de support du temps réel strict ni des interruptions.
-* Possibilité d’exporter des rapports PDF ou CSV.
+* **Round‑Robin Quantum**: Modify the `time_quantum` variable at the top of the file.  
+* **Timeline Length**: Adjust `MAX_TIMELINE` to change the simulation horizon.  
+* **Colors**: Palette defined in the *Colors & Fonts* section.  
 
 ---
+
+## Limitations & Improvement Ideas
+
+* Limited persistence (no disk saving).  
+* No strict real-time support or interrupts.  
+* Potential for PDF/CSV report exports.  
+
+---  
 
 IPSA @2025
