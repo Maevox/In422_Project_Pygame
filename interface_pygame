@@ -371,9 +371,13 @@ def generate_comparison(metrics_dict):
     turns      = [v[1] for v in metrics_dict.values()]
     cpu_utils  = [v[2] for v in metrics_dict.values()]
 
+
     x = np.arange(len(algos))
     width = 0.25
-    plt.figure(figsize=(8,5))
+    plt.figure(figsize=(5,3.5))
+
+
+
     plt.bar(x-width, waitings, width, label="Attente (moy.)")
     plt.bar(x,        turns,   width, label="Exécution (moy.)")
     plt.bar(x+width,  cpu_utils,width, label="CPU (%)")
@@ -387,6 +391,9 @@ def generate_comparison(metrics_dict):
     plt.close()
 
     img = pygame.image.load(path).convert()
+    # Redimension plus petit (manuellement)
+    img = pygame.transform.smoothscale(img, (int(img.get_width() * 0.8), int(img.get_height() * 0.8)))
+
     # redimensionner si trop large
     max_w = SCREEN_WIDTH - 200
     if img.get_width() > max_w:
@@ -401,25 +408,27 @@ def draw_comparison_page():
                      (50, 50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
     pygame.draw.rect(screen, GRAY,
                      (50, 50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
-
+ 
     # titre
     t = title_font.render("Comparaison des Algorithmes", True, BLACK)
     screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
-
+ 
     # valeurs numériques
     y0 = 160
+    max_label_width = 0
     for algo, (w,tau,cpu) in comparison_metrics.items():
         txt = f"{algo:<4}  |  Attente: {w:>6}  |  Exécution: {tau:>6}  |  CPU: {cpu:>6}%"
         surf = font.render(txt, True, BLACK)
         screen.blit(surf, (100, y0))
+        max_label_width = max(max_label_width, surf.get_width())
         y0 += 40
-
-    # graphique
+ 
+    # graphique à droite
     if comparison_surface:
-        screen.blit(comparison_surface,
-                    (SCREEN_WIDTH//2 - comparison_surface.get_width()//2,
-                     y0 + 30))
-
+        graph_x = 100 + max_label_width + 50
+        graph_y = 160
+        screen.blit(comparison_surface, (graph_x, graph_y))
+ 
     # bouton retour
     pygame.draw.rect(screen, DARK_BLUE, compare_back_btn, border_radius=8)
     lab = font.render("Retour", True, WHITE)
@@ -524,16 +533,68 @@ while running:
     elif current_page == "compare":
         draw_comparison_page()
 
+    # elif current_page == "data":
+        # # (page de gestion des tâches inchangée)
+        # pygame.draw.rect(screen, LIGHT_GRAY,
+        #                  (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
+        # pygame.draw.rect(screen, GRAY,
+        #                  (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
+        # t = title_font.render("Gestion des Tâches", True, BLACK)
+        # screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
+        # # liste + boutons + champs (identique à version précédente)
+        # # (afin de ne pas alourdir, le code de la page « data » reste celui de votre base)
+
     elif current_page == "data":
-        # (page de gestion des tâches inchangée)
-        pygame.draw.rect(screen, LIGHT_GRAY,
-                         (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
-        pygame.draw.rect(screen, GRAY,
-                         (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
-        t = title_font.render("Gestion des Tâches", True, BLACK)
-        screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
-        # liste + boutons + champs (identique à version précédente)
-        # (afin de ne pas alourdir, le code de la page « data » reste celui de votre base)
+        # Fond
+        pygame.draw.rect(screen, LIGHT_GRAY, (50, 50, SCREEN_WIDTH - 100, SCREEN_HEIGHT - 100), border_radius=15)
+        pygame.draw.rect(screen, GRAY, (50, 50, SCREEN_WIDTH - 100, SCREEN_HEIGHT - 100), 2, border_radius=15)
+
+        # Titre
+        title = title_font.render("Gestion des Tâches", True, BLACK)
+        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 70))
+
+        # Liste des tâches
+        for i, task in enumerate(tasks):
+            y_pos = 150 + i * 40
+            bg_color = DARK_BLUE if i == selected_task_index else BLUE
+            pygame.draw.rect(screen, bg_color, (100, y_pos, SCREEN_WIDTH - 200, 35), border_radius=5)
+
+            task_text = f"{i+1}. {task['Nom']}"
+            if 'Arrivee' in task:
+                task_text += f" - Arr: {task['Arrivee']}"
+            if 'Duree' in task:
+                task_text += f", Dur: {task['Duree']}"
+            if 'Deadline' in task:
+                task_text += f", DL: {task['Deadline']}"
+            if 'Priorite' in task:
+                task_text += f", Prio: {task['Priorite']}"
+            if 'Execution' in task:
+                task_text += f", Exec: {task['Execution']}"
+
+            task_surface = small_font.render(task_text, True, WHITE)
+            screen.blit(task_surface, (110, y_pos + 7))
+
+        # Boutons
+        add_btn = pygame.Rect(100, SCREEN_HEIGHT - 150, 150, 40)
+        save_btn = pygame.Rect(270, SCREEN_HEIGHT - 150, 150, 40)
+        delete_btn = pygame.Rect(440, SCREEN_HEIGHT - 150, 150, 40)
+        back_btn = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 150, 150, 40)
+
+        pygame.draw.rect(screen, GREEN, add_btn, border_radius=5)
+        pygame.draw.rect(screen, BLUE, save_btn, border_radius=5)
+        pygame.draw.rect(screen, RED, delete_btn, border_radius=5)
+        pygame.draw.rect(screen, DARK_BLUE, back_btn, border_radius=5)
+
+        screen.blit(font.render("Ajouter", True, WHITE), (add_btn.x + 35, add_btn.y + 10))
+        screen.blit(font.render("Enregistrer", True, WHITE), (save_btn.x + 15, save_btn.y + 10))
+        screen.blit(font.render("Supprimer", True, WHITE), (delete_btn.x + 25, delete_btn.y + 10))
+        screen.blit(font.render("Retour", True, WHITE), (back_btn.x + 40, back_btn.y + 10))
+
+        # Champs de saisie
+        for box in input_boxes:
+            box.update()
+            box.draw(screen)
+
 
     pygame.display.flip()
 
@@ -632,18 +693,94 @@ while running:
                     current_page = "main"
 
             # -- PAGE DATA 
-            
             elif current_page == "data":
-                # (page de gestion des tâches inchangée)
-                pygame.draw.rect(screen, LIGHT_GRAY,
-                                (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), border_radius=15)
-                pygame.draw.rect(screen, GRAY,
-                                (50,50, SCREEN_WIDTH-100, SCREEN_HEIGHT-100), 2, border_radius=15)
-                t = title_font.render("Gestion des Tâches", True, BLACK)
-                screen.blit(t, (SCREEN_WIDTH//2 - t.get_width()//2, 70))
-                # liste + boutons + champs (identique à version précédente)
-                # (afin de ne pas alourdir, le code de la page « data » reste celui de votre base)
+                # Gestion de la sélection d'une tâche
+                for i in range(len(tasks)):
+                    task_rect = pygame.Rect(100, 150 + i * 40, SCREEN_WIDTH - 200, 35)
+                    if task_rect.collidepoint(event.pos):
+                        selected_task_index = i
+                        task = tasks[i]
+                        for box in input_boxes:
+                            key = box.label.strip(":")
+                            if key in task:
+                                box.text = str(task[key])
+                                box.txt_surface = input_font.render(box.text, True, BLACK)
+                
+                # Bouton Ajouter
+                add_btn = pygame.Rect(100, SCREEN_HEIGHT - 150, 150, 40)
+                if add_btn.collidepoint(event.pos):
+                    task_data = {}
+                    for box in input_boxes:
+                        key = box.label.strip(":")
+                        task_data[key] = box.text
+                    
+                    try:
+                        # Validation des champs numériques selon l'algorithme
+                        if selected_algo == "RM":
+                            int(task_data['Arrivee'])
+                            int(task_data['Priorite'])
+                            int(task_data['Execution'])
+                        elif selected_algo == "EDF":
+                            int(task_data['Duree'])
+                            int(task_data['Deadline'])
+                        else:  # FCFS, SJN, RR
+                            int(task_data['Arrivee'])
+                            int(task_data['Duree'])
+                        
+                        tasks.append(task_data)
+                        for box in input_boxes:
+                            box.text = ''
+                            box.txt_surface = input_font.render('', True, BLACK)
+                        selected_task_index = None
+                    except ValueError:
+                        pass
+                
+                # Bouton Enregistrer
+                save_btn = pygame.Rect(270, SCREEN_HEIGHT - 150, 150, 40)
+                if save_btn.collidepoint(event.pos) and selected_task_index is not None:
+                    task_data = {}
+                    for box in input_boxes:
+                        key = box.label.strip(":")
+                        task_data[key] = box.text
+                    
+                    try:
+                        # Validation des champs numériques selon l'algorithme
+                        if selected_algo == "RM":
+                            int(task_data['Arrivee'])
+                            int(task_data['Priorite'])
+                            int(task_data['Execution'])
+                        elif selected_algo == "EDF":
+                            int(task_data['Duree'])
+                            int(task_data['Deadline'])
+                        else:  # FCFS, SJN, RR
+                            int(task_data['Arrivee'])
+                            int(task_data['Duree'])
+                        
+                        tasks[selected_task_index] = task_data
+                        selected_task_index = None
+                        for box in input_boxes:
+                            box.text = ''
+                            box.txt_surface = input_font.render('', True, BLACK)
+                    except ValueError:
+                        pass
+                
+                # Bouton Supprimer
+                delete_btn = pygame.Rect(440, SCREEN_HEIGHT - 150, 150, 40)
+                if delete_btn.collidepoint(event.pos) and selected_task_index is not None:
+                    tasks.pop(selected_task_index)
+                    selected_task_index = None
+                    for box in input_boxes:
+                        box.text = ''
+                        box.txt_surface = input_font.render('', True, BLACK)
+                
+                # Bouton Retour
+                back_btn = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 150, 150, 40)
+                if back_btn.collidepoint(event.pos):
+                    current_page = "main"
+                    selected_task_index = None
 
+    
+    pygame.display.flip()   
     clock.tick(30)
 
 pygame.quit()
