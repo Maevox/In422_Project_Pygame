@@ -1,6 +1,4 @@
-Here is the exact translation of your text into English **without any modifications** to the original structure, formatting, or content (except for the language itself):
 
----
 
 # Scheduling Simulator – IN422
 
